@@ -14,9 +14,7 @@
 #include <px4_msgs/msg/sensor_combined.hpp>
 #include <std_srvs/srv/trigger.hpp>
 
-// VIO liveness is read from /orb_slam3/pose directly so we don't cross-subscribe
-// to an /fmu/in/* topic that vio_bridge is the sole writer of.
-#include <geometry_msgs/msg/pose_stamped.hpp>
+
 #include <mira_msgs/srv/set_velocity.hpp>
 #include <mira_msgs/srv/takeoff.hpp>
 #include <geometry_msgs/msg/twist.hpp>
@@ -72,12 +70,7 @@ public:
             rclcpp::SensorDataQoS(),
             std::bind(&OffboardVelocityControl::sensor_gps_callback, this, std::placeholders::_1));
 
-        // --- VIO: Health-monitoring subscription (reads ORB-SLAM3 directly) ---
-        // We listen to /orb_slam3/pose instead of /fmu/in/vehicle_visual_odometry so
-        // the FC-bound flow stays one-way: vio_bridge is the sole writer to PX4.
-        vio_pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-            "/orb_slam3/pose", 10,
-            std::bind(&OffboardVelocityControl::vio_pose_callback, this, std::placeholders::_1));
+
 
         control_mode_sub_ = this->create_subscription<px4_msgs::msg::VehicleControlMode>(
             "/fmu/out/vehicle_control_mode",
@@ -124,7 +117,7 @@ public:
         
         timer_ = this->create_wall_timer(100ms, std::bind(&OffboardVelocityControl::timer_callback, this));
         
-        RCLCPP_INFO(this->get_logger(), "Offboard Velocity Control Node Started (VIO health monitor active). Waiting for commands...");
+        RCLCPP_INFO(this->get_logger(), "Offboard Velocity Control Node Started. Waiting for commands...");
     }
 
 private:
@@ -145,8 +138,7 @@ private:
     rclcpp::Subscription<px4_msgs::msg::BatteryStatus>::SharedPtr battery_status_sub_;
     rclcpp::Subscription<px4_msgs::msg::SensorGps>::SharedPtr sensor_gps_sub_;
 
-    // --- VIO Health Monitor + cmd_vel ---
-    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr vio_pose_sub_;
+    // --- cmd_vel ---
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
 
     // --- Additional FC Telemetry ---
@@ -220,20 +212,9 @@ private:
     std::string frame_id_ = "body";
     rclcpp::Time velocity_end_time_;
 
-    // --- VIO state (health monitoring only) ---
-    bool vio_active_ = false;
-    rclcpp::Time last_vio_time_;
 
-    // ========================================================================
-    // VIO Health Monitor Callback
-    // Tracks ORB-SLAM3 liveness only. Does NOT touch estimator_good_ —
-    // that flag is owned solely by local_position_callback (PX4 EKF truth).
-    // ========================================================================
-    void vio_pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr msg) {
-        (void)msg;
-        last_vio_time_ = this->get_clock()->now();
-        vio_active_ = true;
-    }
+
+
 
     // ========================================================================
     // /cmd_vel Callback — standard velocity interface (body frame)
@@ -410,8 +391,8 @@ private:
             }
         }
         
-        RCLCPP_INFO(this->get_logger(), "Telemetry Check passed. ArmState: %d, NavState: %d, GPS Fix: %d, Sats: %d, VIO: %s", 
-                    arming_state_, nav_state_, gps_fix_type_, gps_satellites_, vio_active_ ? "ACTIVE" : "INACTIVE");
+        RCLCPP_INFO(this->get_logger(), "Telemetry Check passed. ArmState: %d, NavState: %d, GPS Fix: %d, Sats: %d", 
+                    arming_state_, nav_state_, gps_fix_type_, gps_satellites_);
 
         last_command_time_ = this->get_clock()->now();
         current_state_ = State::TAKEOFF;
@@ -508,13 +489,7 @@ private:
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "XRCE-DDS connection lost! No timesync for >2s");
         }
 
-        // VIO liveness check — mark inactive if no pose for >500ms.
-        // estimator_good_ is NOT touched here: PX4's local_position flags will
-        // flip xy_valid/z_valid on their own if the EKF stops trusting VIO.
-        if (vio_active_ && last_vio_time_.nanoseconds() > 0 && (now - last_vio_time_).seconds() > 0.5) {
-            RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "VIO tracking lost! No ORB-SLAM3 pose for >500ms");
-            vio_active_ = false;
-        }
+
 
         // Companion computer heartbeat monitoring
         if (current_state_ == State::VELOCITY && (now - last_command_time_).seconds() > 5.0) {
