@@ -12,8 +12,7 @@ Provides the flight command pipeline between a companion computer and a PX4-base
 Supports both **Gazebo SITL simulation** and **real hardware** deployment.
 
 <p align="center">
-  <!-- TODO: Replace with rendered image of the MIRA airframe (e.g., 3D_models/mira_assembly.png) -->
-  <img src="" alt="MIRA Airframe" width="600"/>
+  <img src="3D_models/images/mira.png" alt="MIRA Airframe" width="600"/>
 </p>
 
 ---
@@ -40,7 +39,10 @@ Supports both **Gazebo SITL simulation** and **real hardware** deployment.
 
 ```
 mira_imav2026/
-├── 3D_models/                       # CAD files (Fusion 360 + STEP)
+├── 3D_models/
+│   ├── fusion360/                   # Fusion 360 native CAD files (.f3z, .f3d)
+│   ├── step/                        # STEP exchange format (.step)
+│   └── images/                      # Rendered images of the airframe
 ├── docker/
 │   ├── Dockerfile                   # PX4 + ROS 2 Humble + Gazebo Harmonic image
 │   ├── docker-compose.yml           # Container orchestration
@@ -303,14 +305,21 @@ string  message
 
 ## 3D Models
 
-The `3D_models/` directory contains the mechanical design of the MIRA airframe in Fusion 360 and STEP formats:
+The `3D_models/` directory contains the mechanical design of the MIRA airframe, organized by file type:
+
+```
+3D_models/
+├── fusion360/          # Fusion 360 native CAD files
+├── step/               # STEP exchange format (vendor-neutral)
+└── images/             # Rendered images
+```
 
 | Component | Fusion 360 | STEP |
 |-----------|-----------|------|
-| Full assembly | `mira_assembly.f3z` | `mira_assembly.step` |
-| Main body frame | `mira_main_body.f3d` | `mira_main_body.step` |
-| Propeller guards | `mira_propellers_guard.f3d` | `mira_propellers_guard.step` |
-| Spacer | `mira_spacer.f3d` | `mira_spacer.step` |
+| Full assembly | `fusion360/mira_assembly.f3z` | `step/mira_assembly.step` |
+| Main body frame | `fusion360/mira_main_body.f3d` | `step/mira_main_body.step` |
+| Propeller guards | `fusion360/mira_propellers_guard.f3d` | `step/mira_propellers_guard.step` |
+| Spacer | `fusion360/mira_spacer.f3d` | `step/mira_spacer.step` |
 
 ---
 
